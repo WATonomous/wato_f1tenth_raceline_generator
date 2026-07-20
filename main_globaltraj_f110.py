@@ -40,7 +40,7 @@ MAP_NAME = args.map_name
 MAP_PATH = args.map_path
 EXPORT_PATH = args.export_path
 
-# MAP_NAME = "hubble_small"
+MAP_NAME = "e7_fifth_big_raceline"
 # MAP_NAME = "Hockenheim_map"
 
 # ----------------------------------------------------------------------------------------------------------------------
