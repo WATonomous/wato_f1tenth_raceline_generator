@@ -38,4 +38,6 @@ resistance:
   lift_coeff_rear: 0.0
 
 track:
-  edge_margin_m: 0.40        # clearance from the car's side to the track edge; raise for more room at speed
+  edge_margin_m: 0.28        # clearance from the car's side to the track edge; raise for more room at speed.
+                             # 0.28 so e7_fifth_v3 fits: its hallway is 1.00 m at (-1.4, 9.2) (0.35 m max even
+                             # centred) and the hairpin width cap makes its bottom-right corner 0.87 m (0.29 m max)
