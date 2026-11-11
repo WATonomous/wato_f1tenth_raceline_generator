@@ -86,11 +86,32 @@ dense points). So you never need to inflate the output-facing stepsize.
   crossing unless `WIDTH_CURV_FRAC` is lowered further.
 - `stepsize_interp_after_opt = 0.15` — **this is what makes the exported line dense.**
 
+## Root cause 4 — the centerline walk (map_converter.ipynb), found 2026-11-11
+
+Even with clean widths, "normals crossed" can come from the **order** of the centerline points:
+
+- The skeleton has short **spurs** (dead-end branches, e.g. near the hairpin at about (14.5, 3.2) m on
+  E7). The depth-first walk goes out along a spur and back, or leaves the spur (or one stray pixel of a
+  thick skeleton corner) for last and then **jumps** to it across the track. The periodic spline then fits
+  a curve out and back across the track: the centerline came out 98 m long instead of 61 m.
+- The walk starts at the leftmost point, which is always a **corner**. The optimizer joins the loop at
+  its first point and copes badly with that seam inside a corner.
+
+Whether a given map hit this was luck (the old `e7_fifth_big_raceline.csv` happened to dodge it).
+Fixes, all in `map_converter.ipynb`: the skeleton cell strips spurs (`PRUNE_SPURS`, using
+`track_editor.prune_spurs`); the cell after the walk keeps only the longest unbroken run of points
+(drops strays visited out of order) and rotates the loop to start on its straightest stretch
+(`ROTATE_TO_STRAIGHT`); `LEFT_START_Y = None` picks the start on the main skeleton loop automatically.
+With these, `e7_fifth_big_raceline`, `e7_floor5_square` and the drawn `e7_fifth_big_real_track` all
+optimize with the default knobs. Also fixed: `main_globaltraj_f110.py` overrode `--map_name` with a
+hard-coded `MAP_NAME = "e7_fifth_big_raceline"`, so every run optimized that one map.
+
 ## What each knob does (quick reference)
 
 | Symptom | Knob | Direction |
 |---|---|---|
-| "spline normals are crossed" error | `WIDTH_CURV_FRAC` (converter) | lower (e.g. 0.6) |
+| "spline normals are crossed" error | centerline length / jumps: check `PRUNE_SPURS` and `ROTATE_TO_STRAIGHT` are on (converter) | first: a 1.5x-too-long centerline means a bad walk, not widths |
+| " " | `WIDTH_CURV_FRAC` (converter) | lower (e.g. 0.6) |
 | " " (or jagged line) | `SMOOTHING` (converter) | raise |
 | " " | `stepsize_reg` (ini) | raise |
 | Exported raceline too sparse | `stepsize_interp_after_opt` (ini) | lower |
