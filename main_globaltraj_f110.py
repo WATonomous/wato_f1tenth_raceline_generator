@@ -29,7 +29,7 @@ F1TENTH ROS code.
 
 # Create the parser and add arguments with defaults and explicit names
 parser = argparse.ArgumentParser(description='Generate optimal trajectory for F1TENTH racing.')
-parser.add_argument('--map_name', type=str, default='e7_floor5_square', help='Name of the map (default: e7_floor5_square)')
+parser.add_argument('--map_name', type=str, default='e7_fifth_big_raceline', help='Name of the map (default: e7_fifth_big_raceline)')
 parser.add_argument('--map_path', type=str, default='', help='Path to the map centerline (should be a .csv), defaults to inputs/tracks/<map_name>.csv')
 parser.add_argument('--export_path', type=str, default='', help='Path to copy from the filepath in the /outputs')
 
@@ -39,9 +39,6 @@ args = parser.parse_args()
 MAP_NAME = args.map_name
 MAP_PATH = args.map_path
 EXPORT_PATH = args.export_path
-
-MAP_NAME = "e7_fifth_big_raceline"
-# MAP_NAME = "Hockenheim_map"
 
 # ----------------------------------------------------------------------------------------------------------------------
 # USER INPUT -----------------------------------------------------------------------------------------------------------
