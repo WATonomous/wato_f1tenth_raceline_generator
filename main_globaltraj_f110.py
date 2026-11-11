@@ -13,6 +13,8 @@ import copy
 import matplotlib.pyplot as plt
 import configparser
 import helper_funcs_glob
+import car_profile
+import raceline_export
 from datetime import datetime
 import argparse
 import shutil
@@ -32,6 +34,22 @@ parser = argparse.ArgumentParser(description='Generate optimal trajectory for F1
 parser.add_argument('--map_name', type=str, default='e7_fifth_big_raceline', help='Name of the map (default: e7_fifth_big_raceline)')
 parser.add_argument('--map_path', type=str, default='', help='Path to the map centerline (should be a .csv), defaults to inputs/tracks/<map_name>.csv')
 parser.add_argument('--export_path', type=str, default='', help='Path to copy from the filepath in the /outputs')
+parser.add_argument('--car', type=str, default=os.path.join('params', 'wato_car.yaml'),
+                    help='car profile overriding the car values in f110.ini ("none" to use f110.ini only)')
+parser.add_argument('--direction', type=str, default='asis', choices=['ccw', 'cw', 'asis'],
+                    help='driving direction: counter-clockwise, clockwise, or as the centerline file runs')
+parser.add_argument('--start', type=str, default='',
+                    help='start/finish point "x,y" in metres (default: the centerline file\'s first point)')
+parser.add_argument('--out_dir', type=str, default='',
+                    help='where the stack-format files go (default outputs/<map_name>/<direction>)')
+parser.add_argument('--s_reg', type=float, default=None,
+                    help='override reg_smooth_opts s_reg from f110.ini (reference track smoothing)')
+parser.add_argument('--edges_path', type=str, default='',
+                    help='centerline csv whose widths are the real track edges for the clearance in the stack '
+                         'files (default: the track file; make_raceline.py passes the unshrunk one)')
+parser.add_argument('--width_buffer', type=float, default=0.0,
+                    help='[m] extra width added to width_opt inside the solver (make_raceline.py uses it to '
+                         'hold the edge margin against the real track edges)')
 
 args = parser.parse_args()
 
@@ -196,6 +214,19 @@ elif opt_type == 'mintime':
     pars["vehicle_params_mintime"]["wheelbase"] = (pars["vehicle_params_mintime"]["wheelbase_front"]
                                                    + pars["vehicle_params_mintime"]["wheelbase_rear"])
 
+# the car profile (params/wato_car.yaml) overrides every car value from f110.ini
+car = None
+if args.car and args.car.lower() != "none":
+    car = car_profile.load(os.path.join(file_paths["module"], args.car) if not os.path.isabs(args.car) else args.car)
+    car_profile.apply(pars, car, opt_type)
+    print("INFO: Car profile %s: %s" % (args.car, json.dumps(car_profile.summary(car))))
+if args.s_reg is not None:
+    pars["reg_smooth_opts"]["s_reg"] = args.s_reg
+if args.width_buffer:
+    pars["optim_opts"]["width_opt"] += args.width_buffer
+print("INFO: s_reg %s, width_opt in the solver %.3f m (buffer %.3f m)"
+      % (pars["reg_smooth_opts"]["s_reg"], pars["optim_opts"]["width_opt"], args.width_buffer))
+
 # set import path for ggv diagram and ax_max_machines (if required)
 if not (opt_type == 'mintime' and not mintime_opts["recalc_vel_profile_by_tph"]):
     file_paths["ggv_file"] = os.path.join(file_paths["module"], "inputs", "veh_dyn_info", pars["ggv_file"])
@@ -209,10 +240,32 @@ if not (opt_type == 'mintime' and not mintime_opts["recalc_vel_profile_by_tph"])
 # save start time
 t_start = time.perf_counter()
 
+# driving direction and start/finish point
+track_direction = raceline_export.direction_of(np.loadtxt(file_paths["track_file"], comments='#', delimiter=',')[:, :2])
+DIRECTION = track_direction if args.direction == 'asis' else args.direction
+imp_opts["flip_imp_track"] = DIRECTION != track_direction
+if args.start:
+    imp_opts["set_new_start"] = True
+    imp_opts["new_start"] = np.array([float(v) for v in args.start.split(",")])
+print("INFO: Driving %s (%s); the centerline file runs %s%s"
+      % (raceline_export.DIRECTIONS[DIRECTION], DIRECTION, track_direction,
+         ", starting nearest (%s)" % args.start if args.start else ""))
+
 # import track
 reftrack_imp = helper_funcs_glob.src.import_track.import_track(imp_opts=imp_opts,
                                                                file_path=file_paths["track_file"],
                                                                width_veh=pars["veh_params"]["width"])
+
+# the car plus its margin must fit everywhere, or the solver fails with an unreadable bound error
+track_width = reftrack_imp[:, 2] + reftrack_imp[:, 3]
+i_narrow = int(np.argmin(track_width))
+if track_width[i_narrow] < pars["optim_opts"]["width_opt"]:
+    max_margin = (track_width[i_narrow] - pars["veh_params"]["width"]) / 2.0
+    raise SystemExit("ERROR: the track is %.2f m wide at (%.2f, %.2f) but the car needs %.2f m (width %.2f m + 2 x "
+                     "edge margin). Widen the track there (track_editor.py), or lower edge_margin_m in the car "
+                     "profile to at most %.2f m."
+                     % (track_width[i_narrow], reftrack_imp[i_narrow, 0], reftrack_imp[i_narrow, 1],
+                        pars["optim_opts"]["width_opt"], pars["veh_params"]["width"], max(max_margin, 0.0)))
 
 # import ggv and ax_max_machines (if required)
 if not (opt_type == 'mintime' and not mintime_opts["recalc_vel_profile_by_tph"]):
@@ -222,6 +275,11 @@ if not (opt_type == 'mintime' and not mintime_opts["recalc_vel_profile_by_tph"])
 else:
     ggv = None
     ax_max_machines = None
+
+# with a car profile, its limits feed the velocity profile and the trajectory checks
+if car is not None:
+    ggv = car_profile.ggv(car)
+    ax_max_machines = car_profile.ax_max_machines(car)
 
 # set ax_pos_safe / ax_neg_safe / ay_safe if required and not set in parameters file
 if opt_type == 'mintime' and pars["optim_opts"]["safe_traj"] \
@@ -560,6 +618,31 @@ if "traj_ltpl_export" in file_paths.keys():
                                                             alpha_opt=alpha_opt)
 
 print("INFO: Finished export of trajectory:", time.strftime("%H:%M:%S"))
+
+# stack formats (race_tracks raceline.csv and MPPI), with edge distances and a summary
+OUT_DIR = args.out_dir or os.path.join(file_paths["module"], "outputs", MAP_NAME, DIRECTION)
+edges_track = reftrack_imp
+if args.edges_path:
+    edges_track = np.loadtxt(args.edges_path, comments='#', delimiter=',')[:, :4]
+    if raceline_export.direction_of(edges_track[:, :2]) != DIRECTION:
+        # same direction of travel as the raceline: reverse the order and swap right and left
+        edges_track = np.flipud(edges_track)[:, [0, 1, 3, 2]]
+stack_summary = raceline_export.export(out_dir=OUT_DIR,
+                                       direction=DIRECTION,
+                                       trajectory=trajectory_opt,
+                                       reftrack=edges_track,
+                                       laptime=t_profile_cl[-1],
+                                       car_summary=car_profile.summary(car) if car is not None else None,
+                                       width_veh=pars["veh_params"]["width"],
+                                       map_name=MAP_NAME,
+                                       extra={"opt_type": opt_type})
+print("INFO: Stack files in %s: lap %.2f s, top speed %.2f m/s, min edge clearance %.2f m"
+      % (OUT_DIR, stack_summary["laptime_s"], stack_summary["top_speed_mps"],
+         stack_summary["min_edge_clearance_m"]))
+for spot in stack_summary["below_margin"]:
+    print("WARNING: the raceline is %.2f m from the real track edge at (%.2f, %.2f), less than the %.2f m edge "
+          "margin: widen the track there" % (spot["clearance_m"], spot["at_m"][0], spot["at_m"][1],
+                                             car["track"]["edge_margin_m"] if car else float("nan")))
 
 # ----------------------------------------------------------------------------------------------------------------------
 # PLOT RESULTS ---------------------------------------------------------------------------------------------------------

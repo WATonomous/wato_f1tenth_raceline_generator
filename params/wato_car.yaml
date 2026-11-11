@@ -1,0 +1,41 @@
+# The WATonomous F1TENTH car (Traxxas Fiesta ST Rally VXL, Velineon 3500 kV, VESC 6 MkV) as the
+# raceline optimizer sees it. Edit the car here, not in f110.ini: car_profile.py maps these onto the
+# optimizer's parameters (f110.ini keeps only solver settings). Every value says where it comes from;
+# "estimate" means nobody has measured it on our car yet (docs/measuring_the_car.md).
+
+car:
+  mass_kg: 3.74              # estimate (bayesrace F1TENTH value): weigh the car with its battery
+  length_m: 0.568            # used only by the collision check after optimizing
+  width_m: 0.296
+  wheelbase_front_m: 0.15875 # centre of gravity to front axle (total wheelbase 0.33 m)
+  wheelbase_rear_m: 0.17145  # centre of gravity to rear axle
+  cog_height_m: 0.074        # estimate (bayesrace)
+  yaw_inertia_kgm2: 0.04712  # estimate (bayesrace)
+  max_steer_rad: 0.52        # pure_pursuit.yaml max_steering_angle
+
+# What the car's software allows. Keep these at or below the stack's limits; make_raceline.py warns
+# when they differ from interfacing_bringup/config/car/vesc.yaml.
+limits:
+  top_speed_mps: 10.0        # vesc.yaml speed_max 46200 ERPM / 4620 ERPM per m/s
+  max_accel_mps2: 3.3        # ackermann_to_vesc max_accel (speed limiter)
+  max_decel_mps2: 4.0        # ackermann_to_vesc max_decel
+  max_lateral_accel_mps2: null   # null: grip.mue * safety_factor * 9.81; set a number to cap corner speed
+
+# What the motor and battery can push (the limits above are lower, so these rarely bind).
+powertrain:
+  drive_force_n: 25.0        # 60 A motor current -> about 6.8 m/s^2 at 3.74 kg (VESC tests 2026-11-10)
+  brake_force_n: 25.0        # same motor current braking
+  power_w: 450.0             # 60 A battery current x ~11 V, ~70% reaching the wheels
+
+grip:
+  mue: 0.3                   # floor friction: estimate until measured with the pull test
+  safety_factor: 1.0         # multiplies mue; use about 0.8 once mue is measured
+
+resistance:
+  drag_coeff: 0.075          # F = drag_coeff * v^2 [N]; fits the ~80 W drivetrain loss at 10 m/s (stand test 2026-11-10)
+  rolling_coeff: 0.013       # estimate
+  lift_coeff_front: 0.0      # no wings, so no downforce
+  lift_coeff_rear: 0.0
+
+track:
+  edge_margin_m: 0.40        # clearance from the car's side to the track edge; raise for more room at speed
