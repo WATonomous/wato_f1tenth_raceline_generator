@@ -24,35 +24,64 @@ calculating the global race trajectory.
 
 # Getting Started
 
-First, clone the repository
+First, clone the repository (in the WATonomous F1TENTH repo, `./watod tools` does this into `tools/`)
 ```bash
-git clone https://github.com/CL2-UWaterloo/Raceline-Optimization.git
-cd Raceline-Optimization
+git clone https://github.com/WATonomous/wato_f1tenth_raceline_generator.git
+cd wato_f1tenth_raceline_generator
 ```
 
-Then, set up your virtual environment. Conda is the recommended method.
+Then create the conda environment. `setup_env.sh` makes a Python 3.8 env called `wato_raceline` (the pinned
+packages only have wheels up to 3.8), installs `requirements.txt` and Jupyter, and registers the Jupyter
+kernel "Python (wato_raceline)". It is safe to re-run.
 
 ```bash
-conda create --name raceline python=3.8
-conda activate raceline
+./setup_env.sh            # or ./setup_env.sh <other-name>
+conda activate wato_raceline
 ```
 
 Lots of the required functions for trajectory planning are cumulated in the trajectory planning helpers repository.
 
 **Note**: A fork of the trajectory planning helper repository is used in the `requirements.txt` file instead of the original repository due to issues with outdated `quadprog` library.
 
-Install the required python packages
-```bash
-pip install -r requirements.txt
-```
+To set it up by hand instead: `conda create -n wato_raceline python=3.8 tk`, then
+`pip install -r requirements.txt notebook nbconvert ipykernel`.
 
 # Steps
 
-### For `slam_toolbox`
-If you generated the map through `slam_toolbox`, consult https://stevengong.co/notes/Raceline-Optimization.
-You might need to photoshop the map first to remove any artifacts and have clear track boundaries.
+### Step 0: is the map a clean closed track?
+`map_converter.ipynb` needs one closed ring of free space: white track, black edges, grey outside. Open the
+notebook and set, in its step 0 cell:
 
-First, run `map_converter.ipynb`, and then run `sanity_check.ipynb` to make sure the line generated is correct.
+- `TRACK_TYPE = "closed"` if the map already looks like that.
+- `TRACK_TYPE = "open"` for anything else, such as a raw `slam_toolbox` map. No GIMP needed: with
+  `EDIT_TRACK = True` the notebook opens `track_editor.py`, where you draw the outer and inner edge of the
+  track on the map, press `s` to save and close the window. It writes `maps/<map>_track.pgm/.yaml` (same
+  size, resolution and origin as the original) and `maps/<map>_track_lines.json` (the edges, reopen it to
+  keep editing). The raceline is built from `<map>_track`; keep using the original map for localization,
+  since both are in the same frame. `EDIT_TRACK = False` rebuilds the track map from the saved edges.
+
+Either way the notebook checks the map (one ring, closed edges, narrowest point) before going on. The
+editor also runs on its own:
+
+```bash
+python track_editor.py maps/<map>             # draw the track (reopens saved edges)
+python track_editor.py maps/<map> --no-gui    # rebuild maps/<map>_track from the saved edges
+python track_editor.py --check maps/<map>     # is this map one clean ring?
+```
+
+Editor keys: click adds a point (shift+click inserts it into the nearest segment), drag moves it,
+right-click deletes it, `o`/`i` switch between the outer and inner edge, `u` undo, `c` clear the edge,
+`m` smooth or straight edges, `k` keep or ignore obstacles inside the track, `p` preview the result,
+`s` save, `q` quit. Zoom in with the toolbar for detail; editing pauses while zoom or pan is on.
+`maps/e7_fifth_big_real_track_lines.json` is a worked example (the E7 fifth floor loop).
+
+### For `slam_toolbox`
+Use step 0 above (`TRACK_TYPE = "open"`) instead of photoshopping the map. Background:
+https://stevengong.co/notes/Raceline-Optimization.
+
+Run `map_converter.ipynb`, and then `sanity_check.ipynb` to make sure the line generated is correct.
+The converter walks the centerline from its leftmost point automatically (`LEFT_START_Y = None`), strips
+dead-end branches from the skeleton, and starts the loop on its straightest stretch.
 
 This will export a `.csv` file of the map to `inputs/tracks`.
 
@@ -60,10 +89,10 @@ This will export a `.csv` file of the map to `inputs/tracks`.
 Alternatively, if you generated the map by storing a set of waypoints, you can directly store it inside `inputs/tracks`.
 
 ### Common steps
-Then, run `main_globaltraj_f110.py` with the map name to generate the trajectory (expects the map to be inside `inputs/tracks`). By default, the generated raceline will be stored inside `outputs/<map_name>`.
+Then, run `main_globaltraj_f110.py` with the map name to generate the trajectory (expects the map to be inside `inputs/tracks`). By default, the generated raceline will be stored inside `outputs/<map_name>`. Without `--map_name` it uses `e7_fifth_big_raceline`.
 
 ```bash
-python3 main_globaltraj_f110.py --map_name e7_floor5_square
+python3 main_globaltraj_f110.py --map_name e7_fifth_big_real_track
 ```
 
 Optionally, you can also specify a `--map_path` and `--export_path`:
