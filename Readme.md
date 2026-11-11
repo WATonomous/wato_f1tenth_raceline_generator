@@ -46,6 +46,36 @@ Lots of the required functions for trajectory planning are cumulated in the traj
 To set it up by hand instead: `conda create -n wato_raceline python=3.8 tk`, then
 `pip install -r requirements.txt notebook nbconvert ipykernel`.
 
+# Quick start: one command
+
+```bash
+python track_editor.py maps/<map>          # only if the map is not one clean ring: draw the two track edges
+python make_raceline.py <map>              # centerline, both directions, reports (a few minutes)
+python make_raceline.py <map> --export     # ... and write the racelines into the stack's race_tracks
+```
+
+`make_raceline.py` builds the track from your drawn edges (or uses the map if it is already one clean
+ring), makes the centerline, optimizes **counter-clockwise and clockwise** in parallel, and writes report
+pages to `outputs/<name>/`: `report_ccw.png`, `report_cw.png` and `report_compare.png`. Each page shows
+the raceline on the original map coloured by speed, with direction arrows, start/finish, the top-speed
+and slowest points, braking zones, and red circles where the line comes closer to the track edge than
+the car's margin; plus the speed along the lap, the clearance to both edges, and the accelerations
+against the car's limits. With `--export` it writes `raceline_ccw.csv`, `raceline_cw.csv` (stack format
+`x_m,y_m,v_mps,dr_m,dl_m`), the MPPI versions, `raceline.csv` (the default direction) and
+`track_info.yaml` into `race_tracks/tracks/<track>/`. In the stack, `DIRECTION=ccw|cw` picks one.
+
+- **The car:** `params/wato_car.yaml` (mass, top speed, acceleration and braking limits, grip, drag, and
+  `edge_margin_m`, the clearance from the car's side to the track edge). Edit it there; `f110.ini` only
+  holds solver settings. How to measure the values: `docs/measuring_the_car.md`.
+- **Direction:** the centerline is always written counter-clockwise; `main_globaltraj_f110.py
+  --direction ccw|cw` drives it either way. **Start/finish:** press `f` in the editor; default is the
+  straightest stretch.
+- **Holding the margin:** if the line comes closer to the drawn edges than `edge_margin_m`, the corridor
+  is narrowed on that side around those spots and re-solved (up to twice); spots it still cannot clear
+  are listed in red. A failed solve is retried with more reference smoothing.
+
+The steps below run the same code one at a time (the notebooks are viewers over it).
+
 # Steps
 
 ### Step 0: is the map a clean closed track?

@@ -112,6 +112,9 @@ hard-coded `MAP_NAME = "e7_fifth_big_raceline"`, so every run optimized that one
 |---|---|---|
 | "spline normals are crossed" error | centerline length / jumps: check `PRUNE_SPURS` and `ROTATE_TO_STRAIGHT` are on (converter) | first: a 1.5x-too-long centerline means a bad walk, not widths |
 | " " | `WIDTH_CURV_FRAC` (converter) | lower (e.g. 0.6) |
+| "local infeasibility" / "Restoration Failed" in one direction only | `s_reg` (ini, or `--s_reg`) | raise: `make_raceline.py` already retries 1 -> 3 -> 10 |
+| raceline closer to the drawn edges than `edge_margin_m` | `s_reg` low (1, the default since 2026-11-11); `make_raceline.py` narrows the corridor at those spots | widen the track there if it still shows red circles |
+| bound assertion `lb <= ub` from casadi | track narrower than car width + 2 x `edge_margin_m` | now caught before the solve with the location |
 | " " (or jagged line) | `SMOOTHING` (converter) | raise |
 | " " | `stepsize_reg` (ini) | raise |
 | Exported raceline too sparse | `stepsize_interp_after_opt` (ini) | lower |
