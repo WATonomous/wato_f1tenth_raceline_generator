@@ -72,7 +72,8 @@ python track_editor.py --check maps/<map>     # is this map one clean ring?
 Editor keys: click adds a point (shift+click inserts it into the nearest segment), drag moves it,
 right-click deletes it, `o`/`i` switch between the outer and inner edge, `u` undo, `c` clear the edge,
 `m` smooth or straight edges, `k` keep or ignore obstacles inside the track, `p` preview the result,
-`s` save, `q` quit. Zoom in with the toolbar for detail; editing pauses while zoom or pan is on.
+`s` save, `q` quit. Zoom in and out at the mouse with `ctrl` + `+` / `ctrl` + `-` or the scroll wheel;
+`ctrl` + `0` shows the whole map. The toolbar's zoom and pan also work; editing pauses while they are on.
 `maps/e7_fifth_big_real_track_lines.json` is a worked example (the E7 fifth floor loop).
 
 ### For `slam_toolbox`

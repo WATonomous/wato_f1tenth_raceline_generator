@@ -19,7 +19,8 @@ Usage (in the wato_raceline conda env, from the repo root):
 Editor keys: click add a point (shift+click inserts it into the nearest segment), drag a point to
 move it, right-click delete a point, o/i edit the outer/inner edge, u undo, c clear the current
 edge, m smooth/straight edges, k keep/ignore obstacles inside the track, p preview the result,
-s save, h help, q quit. The toolbar's zoom and pan work as usual (editing pauses while they are on).
+s save, h help, q quit. Ctrl+plus / ctrl+minus or the scroll wheel zoom in and out at the mouse,
+ctrl+0 shows the whole map. The toolbar's zoom and pan also work (editing pauses while they are on).
 """
 
 import argparse
@@ -397,7 +398,9 @@ def build_from_lines(info, lines, paths):
 # Editor window
 
 HELP = ("click add | shift+click insert | drag move | right-click delete | o/i outer/inner | "
-        "u undo | c clear | m smooth | k obstacles | p preview | s save | q quit")
+        "u undo | c clear | m smooth | k obstacles | p preview | s save | q quit\n"
+        "ctrl+plus / ctrl+minus or scroll: zoom at the mouse | ctrl+0: whole map")
+ZOOM_STEP = 1.5   # each zoom key press or scroll notch
 
 
 class Editor:
@@ -431,13 +434,14 @@ class Editor:
             self.curve_art[label], = self.ax.plot([], [], "-", color=self.COLORS[label], lw=1.5)
             self.point_art[label], = self.ax.plot([], [], "o", color=self.COLORS[label], ms=5)
         self.status = self.fig.text(0.01, 0.01, "", fontsize=9, family="monospace")
-        self.fig.text(0.01, 0.975, HELP, fontsize=8, family="monospace")
+        self.fig.text(0.01, 0.96, HELP, fontsize=8, family="monospace")
 
         cid = self.fig.canvas.mpl_connect
         cid("button_press_event", self.on_press)
         cid("motion_notify_event", self.on_motion)
         cid("button_release_event", self.on_release)
         cid("key_press_event", self.on_key)
+        cid("scroll_event", self.on_scroll)
         cid("close_event", self.on_close)
         self.redraw("ready")
 
@@ -529,8 +533,42 @@ class Editor:
             self.drag = None
             self.redraw("point moved")
 
+    def zoom(self, factor, x=None, y=None):
+        """Zoom by `factor` (<1 in, >1 out) keeping the point (x, y) under the mouse in place."""
+        (x0, x1), (y0, y1) = self.ax.get_xlim(), self.ax.get_ylim()
+        if x is None or y is None:
+            x, y = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+        full = self.info.extent()
+        nx0, nx1 = x - (x - x0) * factor, x + (x1 - x) * factor
+        ny0, ny1 = y - (y - y0) * factor, y + (y1 - y) * factor
+        if (nx1 - nx0) >= (full[1] - full[0]) and (ny1 - ny0) >= (full[3] - full[2]):
+            nx0, nx1, ny0, ny1 = full          # zoomed out past the whole map: show the whole map
+        self.ax.set_xlim(nx0, nx1)
+        self.ax.set_ylim(ny0, ny1)
+        self.fig.canvas.draw_idle()
+
+    def on_scroll(self, event):
+        if event.inaxes is not self.ax:
+            return
+        self.zoom(1.0 / ZOOM_STEP if event.button == "up" else ZOOM_STEP, event.xdata, event.ydata)
+
     def on_key(self, event):
         key = event.key
+        x = getattr(event, "xdata", None) if getattr(event, "inaxes", None) is self.ax else None
+        y = getattr(event, "ydata", None) if x is not None else None
+        # "+" needs shift on most keyboards, so Tk may report ctrl++, ctrl+= or ctrl+plus
+        if key in ("ctrl++", "ctrl+=", "ctrl+plus", "ctrl+shift+=", "ctrl+shift++"):
+            self.zoom(1.0 / ZOOM_STEP, x, y)
+            return
+        if key in ("ctrl+-", "ctrl+minus", "ctrl+_", "ctrl+shift+-", "ctrl+shift+_"):
+            self.zoom(ZOOM_STEP, x, y)
+            return
+        if key in ("ctrl+0", "ctrl+)"):
+            full = self.info.extent()
+            self.ax.set_xlim(full[0], full[1])
+            self.ax.set_ylim(full[2], full[3])
+            self.fig.canvas.draw_idle()
+            return
         if key in ("o", "i"):
             self.active = "outer" if key == "o" else "inner"
             self.redraw()
