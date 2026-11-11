@@ -20,7 +20,8 @@ Editor keys: click add a point (shift+click inserts it into the nearest segment)
 move it, right-click delete a point, o/i edit the outer/inner edge, u undo, c clear the current
 edge, m smooth/straight edges, k keep/ignore obstacles inside the track, p preview the result,
 s save, h help, q quit. Ctrl+plus / ctrl+minus or the scroll wheel zoom in and out at the mouse,
-ctrl+0 shows the whole map. The toolbar's zoom and pan also work (editing pauses while they are on).
+ctrl+0 shows the whole map, and dragging with the middle button moves the view. The toolbar's zoom
+and pan also work (editing pauses while they are on).
 """
 
 import argparse
@@ -399,7 +400,8 @@ def build_from_lines(info, lines, paths):
 
 HELP = ("click add | shift+click insert | drag move | right-click delete | o/i outer/inner | "
         "u undo | c clear | m smooth | k obstacles | p preview | s save | q quit\n"
-        "ctrl+plus / ctrl+minus or scroll: zoom at the mouse | ctrl+0: whole map")
+        "ctrl+plus / ctrl+minus or scroll: zoom at the mouse | middle-drag: move the view | "
+        "ctrl+0: whole map")
 ZOOM_STEP = 1.5   # each zoom key press or scroll notch
 
 
@@ -413,6 +415,7 @@ class Editor:
         self.active = "outer" if len(lines["outer"]) < 3 else "inner"
         self.history = []
         self.drag = None
+        self.pan = None       # middle-button drag of the view in progress
         self.dirty = False
         self.previewing = False
 
@@ -500,6 +503,10 @@ class Editor:
 
     # -- events
     def on_press(self, event):
+        if event.button == 2 and event.inaxes is self.ax:
+            # middle button: drag the view (works whatever the toolbar is doing)
+            self.pan = (event.x, event.y, self.ax.get_xlim(), self.ax.get_ylim())
+            return
         if event.inaxes is not self.ax or self.toolbar_busy() or event.xdata is None:
             return
         pts = self.lines[self.active]
@@ -523,12 +530,24 @@ class Editor:
                 self.redraw("point deleted")
 
     def on_motion(self, event):
+        if self.pan is not None:
+            # move the view with the mouse, in screen pixels, so it works outside the map too
+            x_px, y_px, (x0, x1), (y0, y1) = self.pan
+            dx = (event.x - x_px) * (x1 - x0) / self.ax.bbox.width
+            dy = (event.y - y_px) * (y1 - y0) / self.ax.bbox.height
+            self.ax.set_xlim(x0 - dx, x1 - dx)
+            self.ax.set_ylim(y0 - dy, y1 - dy)
+            self.fig.canvas.draw_idle()
+            return
         if self.drag is None or event.inaxes is not self.ax or event.xdata is None:
             return
         self.lines[self.active][self.drag] = [event.xdata, event.ydata]
         self.redraw("moving")
 
     def on_release(self, event):
+        if self.pan is not None and event.button == 2:
+            self.pan = None
+            return
         if self.drag is not None:
             self.drag = None
             self.redraw("point moved")

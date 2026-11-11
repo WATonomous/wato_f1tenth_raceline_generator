@@ -73,7 +73,8 @@ Editor keys: click adds a point (shift+click inserts it into the nearest segment
 right-click deletes it, `o`/`i` switch between the outer and inner edge, `u` undo, `c` clear the edge,
 `m` smooth or straight edges, `k` keep or ignore obstacles inside the track, `p` preview the result,
 `s` save, `q` quit. Zoom in and out at the mouse with `ctrl` + `+` / `ctrl` + `-` or the scroll wheel;
-`ctrl` + `0` shows the whole map. The toolbar's zoom and pan also work; editing pauses while they are on.
+`ctrl` + `0` shows the whole map, and dragging with the middle mouse button moves the view. The toolbar's
+zoom and pan also work; editing pauses while they are on.
 `maps/e7_fifth_big_real_track_lines.json` is a worked example (the E7 fifth floor loop).
 
 ### For `slam_toolbox`
