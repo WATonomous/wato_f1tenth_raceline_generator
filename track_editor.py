@@ -18,7 +18,8 @@ Usage (in the wato_raceline conda env, from the repo root):
 
 Editor keys: click add a point (shift+click inserts it into the nearest segment), drag a point to
 move it, right-click delete a point, o/i edit the outer/inner edge, u undo, c clear the current
-edge, m smooth/straight edges, k keep/ignore obstacles inside the track, p preview the result,
+edge, m smooth/straight edges, k keep/ignore obstacles inside the track, f start/finish point at the
+mouse (make_raceline.py starts both directions there; default: the straightest stretch), p preview,
 s save, h help, q quit. Ctrl+plus / ctrl+minus or the scroll wheel zoom in and out at the mouse,
 ctrl+0 shows the whole map, and dragging with the middle button moves the view. The toolbar's zoom
 and pan also work (editing pauses while they are on).
@@ -254,6 +255,8 @@ def save_lines(path, info, lines):
     data.update(lines)
     data["outer"] = [[round(float(x), 4), round(float(y), 4)] for x, y in lines["outer"]]
     data["inner"] = [[round(float(x), 4), round(float(y), 4)] for x, y in lines["inner"]]
+    if lines.get("start"):
+        data["start"] = [round(float(lines["start"][0]), 4), round(float(lines["start"][1]), 4)]
     text = json.dumps(data, indent=2)
     # one [x, y] point per line, so the file stays short and diffs read well
     text = re.sub(r"\[\s+(-?[\d.eE+-]+),\s+(-?[\d.eE+-]+)\s+\]", r"[\1, \2]", text)
@@ -401,7 +404,7 @@ def build_from_lines(info, lines, paths):
 HELP = ("click add | shift+click insert | drag move | right-click delete | o/i outer/inner | "
         "u undo | c clear | m smooth | k obstacles | p preview | s save | q quit\n"
         "ctrl+plus / ctrl+minus or scroll: zoom at the mouse | middle-drag: move the view | "
-        "ctrl+0: whole map")
+        "ctrl+0: whole map | f: start/finish at the mouse")
 ZOOM_STEP = 1.5   # each zoom key press or scroll notch
 
 
@@ -436,6 +439,8 @@ class Editor:
         for label in ("outer", "inner"):
             self.curve_art[label], = self.ax.plot([], [], "-", color=self.COLORS[label], lw=1.5)
             self.point_art[label], = self.ax.plot([], [], "o", color=self.COLORS[label], ms=5)
+        self.start_art, = self.ax.plot([], [], "o", color="limegreen", ms=12, mec="black", zorder=5)
+        self.start_text = self.ax.text(0, 0, "", fontsize=9, weight="bold", color="darkgreen")
         self.status = self.fig.text(0.01, 0.01, "", fontsize=9, family="monospace")
         self.fig.text(0.01, 0.96, HELP, fontsize=8, family="monospace")
 
@@ -489,6 +494,14 @@ class Editor:
             active = label == self.active
             self.curve_art[label].set_linewidth(2.5 if active else 1.2)
             self.point_art[label].set_markersize(6 if active else 3)
+        start = self.lines.get("start")
+        if start:
+            self.start_art.set_data([start[0]], [start[1]])
+            self.start_text.set_position((start[0], start[1]))
+            self.start_text.set_text("  START")
+        else:
+            self.start_art.set_data([], [])
+            self.start_text.set_text("")
         problems = curve_problems(self.lines["outer"], self.lines["inner"], self.lines["smooth"])
         state = ("editing %s | outer %d pts, inner %d pts | %s | obstacles %s | %s%s"
                  % (self.active.upper(), len(self.lines["outer"]), len(self.lines["inner"]),
@@ -608,6 +621,13 @@ class Editor:
             self.lines["keep_obstacles"] = not self.lines["keep_obstacles"]
             self.dirty = True
             self.redraw()
+        elif key == "f":
+            if x is None:
+                self.redraw("put the mouse on the start/finish spot, then press f")
+                return
+            self.lines["start"] = [float(x), float(y)]
+            self.dirty = True
+            self.redraw("start/finish set at (%.2f, %.2f)" % (x, y))
         elif key == "p":
             self.toggle_preview()
         elif key == "s":
