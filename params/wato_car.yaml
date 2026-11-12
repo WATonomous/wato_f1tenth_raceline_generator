@@ -18,7 +18,9 @@ car:
 limits:
   top_speed_mps: 10.0        # vesc.yaml speed_max 46200 ERPM / 4620 ERPM per m/s
   max_accel_mps2: 3.3        # ackermann_to_vesc max_accel (speed limiter)
-  max_decel_mps2: 4.0        # ackermann_to_vesc max_decel
+  # max_decel_mps2: 4.0      # previous: ackermann_to_vesc max_decel before 2026-11-12
+  max_decel_mps2: 2.5        # ackermann_to_vesc max_decel: gentler braking so the nose dips less and the
+                             # lidar stays off the floor (e7 bottom-hallway crashes, 2026-11-10/11)
   max_lateral_accel_mps2: null   # null: grip.mue * safety_factor * 9.81; set a number to cap corner speed
 
 # What the motor and battery can push (the limits above are lower, so these rarely bind).
